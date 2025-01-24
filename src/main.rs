@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use std::{
     ffi::OsStr,
     fs::File,
@@ -9,6 +11,9 @@ use std::{
     ptr::null_mut,
     process::Command,
     sync::Mutex,
+    path::PathBuf,
+    thread,
+    time::Duration,
 };
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -131,7 +136,7 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
 }
 
 /// Returns the path to the flag file.
-fn get_flag_file_path() -> io::Result<std::path::PathBuf> {
+fn get_flag_file_path() -> io::Result<PathBuf> {
     let exe_path = std::env::current_exe()?;
     let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
     Ok(exe_dir.join("printing.flag"))
@@ -158,6 +163,7 @@ fn is_printing_in_progress() -> io::Result<bool> {
 }
 
 /// Prints a file using the appropriate method based on its extension.
+/// Prints a file using the appropriate method based on its extension.
 fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
     if get_file_extension(document_path).unwrap_or_default() == "pdf" {
         let trimmed_printer_name = printer_name.trim_matches('\\');
@@ -166,14 +172,15 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
         let pdftoprinter_path = exe_dir.join("PDFtoPrinter.exe");
 
         while is_printing_in_progress()? {
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            thread::sleep(Duration::from_millis(100)); // Reduced waiting time
         }
 
         create_flag_file()?;
 
+        // Ensure no window is shown for the external process
         let status = Command::new(pdftoprinter_path)
             .args(&[document_path, trimmed_printer_name])
-            .creation_flags(CREATE_NO_WINDOW)
+            .creation_flags(CREATE_NO_WINDOW) // This hides the window
             .status()?;
 
         delete_flag_file()?;
