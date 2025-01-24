@@ -117,8 +117,8 @@ void SendPrintPdfJob(LPTSTR printerName, const std::string& documentPath)
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
-    // Create the process
-    if (!CreateProcess(NULL, const_cast<char*>(command.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+    // Create the process with CREATE_NO_WINDOW flag to hide the terminal window
+    if (!CreateProcess(NULL, const_cast<char*>(command.c_str()), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
     {
         std::cout << "Failed to execute PDFtoPrinter.exe. Error: " << GetLastError() << std::endl;
         return;
