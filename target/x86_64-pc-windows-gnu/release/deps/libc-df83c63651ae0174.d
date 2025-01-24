@@ -1,0 +1,11 @@
+/Users/rajifafif/www/printer-exe/target/x86_64-pc-windows-gnu/release/deps/liblibc-df83c63651ae0174.rmeta: /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/lib.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/macros.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/fixed_width_ints.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/mod.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/gnu/mod.rs
+
+/Users/rajifafif/www/printer-exe/target/x86_64-pc-windows-gnu/release/deps/liblibc-df83c63651ae0174.rlib: /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/lib.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/macros.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/fixed_width_ints.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/mod.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/gnu/mod.rs
+
+/Users/rajifafif/www/printer-exe/target/x86_64-pc-windows-gnu/release/deps/libc-df83c63651ae0174.d: /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/lib.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/macros.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/fixed_width_ints.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/mod.rs /Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/gnu/mod.rs
+
+/Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/lib.rs:
+/Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/macros.rs:
+/Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/fixed_width_ints.rs:
+/Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/mod.rs:
+/Users/rajifafif/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libc-0.2.169/src/windows/gnu/mod.rs:

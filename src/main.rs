@@ -6,7 +6,7 @@ use std::{
         ffi::OsStrExt,
         process::CommandExt, // Import CommandExt for creation_flags
     },
-    path::PathBuf,
+    // path::PathBuf,
     ptr::null_mut,
     process::Command,
     sync::Mutex,
@@ -25,6 +25,7 @@ use winapi::{
         },
     },
 };
+use sysinfo::{ProcessExt, System, SystemExt};
 
 // Global queue for print jobs
 lazy_static! {
@@ -73,7 +74,7 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
         }
     }
 
-    println!("Printer opened successfully: {}", printer_name);
+    // println!("Printer opened successfully: {}", printer_name);
 
     // Read the document file as binary data
     let mut file = File::open(document_path)?;
@@ -102,7 +103,7 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        println!("Print job started successfully. Job ID: {}", job_id);
+        // println!("Print job started successfully. Job ID: {}", job_id);
 
         // Start a new page
         if StartPagePrinter(h_printer) == 0 {
@@ -116,7 +117,7 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        println!("Page started successfully.");
+        // println!("Page started successfully.");
 
         // Write the print data to the printer
         let mut bytes_written: DWORD = 0;
@@ -132,7 +133,7 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        println!("Data written to printer successfully. Bytes written: {}", bytes_written);
+        // println!("Data written to printer successfully. Bytes written: {}", bytes_written);
 
         // End the page
         if EndPagePrinter(h_printer) == 0 {
@@ -146,7 +147,7 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        println!("Page ended successfully.");
+        // println!("Page ended successfully.");
 
         // End the print job
         if EndDocPrinter(h_printer) == 0 {
@@ -159,7 +160,7 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        println!("Print job ended successfully.");
+        // println!("Print job ended successfully.");
 
         // Close the printer
         ClosePrinter(h_printer);
@@ -168,23 +169,44 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
     Ok(())
 }
 
+/// Checks if PDFtoPrinter.exe is still running.
+fn is_pdftoprinter_running() -> bool {
+    let system = System::new_all();
+    for process in system.processes_by_name("PDFtoPrinter") {
+        if process.name() == "PDFtoPrinter.exe" {
+            return true;
+        }
+    }
+    false
+}
+
 /// Prints a file using the appropriate method based on its extension.
 fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
     let file_extension = get_file_extension(document_path).unwrap_or_default();
 
     if file_extension == "pdf" {
-        // Use Foxit Reader for PDF files
+        // Use PDFtoPrinter.exe for PDF files
         let trimmed_printer_name = printer_name.trim_matches('\\');
 
         // Debugging: Print the trimmed printer name (optional, for logging)
-        println!("Trimmed printer name: {}", trimmed_printer_name);
+        // println!("Trimmed printer name: {}", trimmed_printer_name);
 
-        // Path to Foxit Reader executable
-        let foxit_reader_path = r#"C:\Program Files (x86)\Foxit Software\Foxit PDF Reader\FoxitPDFReader.exe"#;
+        // Get the path of the executable file
+        let exe_path = std::env::current_exe()?;
+        let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
+
+        // Construct the path to the bundled PDFtoPrinter.exe
+        let pdftoprinter_path = exe_dir.join("PDFtoPrinter.exe");
 
         // Construct the command to print the PDF
-        let command = foxit_reader_path;
-        let args = ["/t", document_path, trimmed_printer_name];
+        let command = pdftoprinter_path.to_str().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to convert path to string"))?;
+        let args = [document_path, trimmed_printer_name];
+
+        // Check if PDFtoPrinter.exe is already running
+        while is_pdftoprinter_running() {
+            // println!("PDFtoPrinter.exe is still running. Waiting...");
+            std::thread::sleep(std::time::Duration::from_secs(1)); // Wait for 1 second before checking again
+        }
 
         // Execute the command
         let status = Command::new(command)
@@ -195,11 +217,11 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
         if !status.success() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                "Failed to execute Foxit Reader",
+                "Failed to execute PDFtoPrinter.exe",
             ));
         }
 
-        println!("Print job sent successfully to {}.", trimmed_printer_name);
+        // println!("Print job sent successfully to {}.", trimmed_printer_name);
     } else {
         // Use raw printing for non-PDF files
         send_print_raw_job(printer_name, document_path)?;
