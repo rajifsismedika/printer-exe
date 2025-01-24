@@ -164,7 +164,7 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
         let vbs_script_path_str = vbs_script_path.to_str().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to convert VBS script path to string"))?;
 
         // Construct the command to call the wrapper script
-        let command = "wscript";
+        let command = "cscript"; // Use cscript instead of wscript
         let args = [vbs_script_path_str, document_path, trimmed_printer_name];
 
         // Execute the command

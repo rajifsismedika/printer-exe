@@ -8,10 +8,14 @@ Function IsProcessRunning(processName)
     IsProcessRunning = (InStr(strOutput, processName) > 0)
 End Function
 
+' Get the full path to PDFtoPrinter.exe
+Dim pdfToPrinterPath
+pdfToPrinterPath = "C:\path\to\PDFtoPrinter.exe" ' Update this path
+
 ' Check if PDFtoPrinter.exe is already running
 If IsProcessRunning("PDFtoPrinter") Then
     WScript.Echo "PDFtoPrinter.exe is already running. Skipping this print job."
 Else
     ' Run PDFtoPrinter.exe with the provided arguments
-    objShell.Run "PDFtoPrinter.exe """ & WScript.Arguments(0) & """ """ & WScript.Arguments(1) & """", 0, False
+    objShell.Run """" & pdfToPrinterPath & """ """ & WScript.Arguments(0) & """ """ & WScript.Arguments(1) & """", 0, False
 End If
