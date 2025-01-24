@@ -115,6 +115,9 @@ void SendPrintPdfJob(LPTSTR printerName, const std::string& documentPath)
 
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;  // Set the flag to use wShowWindow
+    si.wShowWindow = SW_HIDE;           // Hide the window
+
     ZeroMemory(&pi, sizeof(pi));
 
     // Create the process with CREATE_NO_WINDOW flag to hide the terminal window
