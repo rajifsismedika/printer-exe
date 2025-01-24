@@ -149,35 +149,50 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
     let file_extension = get_file_extension(document_path).unwrap_or_default();
 
     if file_extension == "pdf" {
-        // Use PDFtoPrinter.exe for PDF files
+        // Use Ghostscript for PDF files
         let trimmed_printer_name = printer_name.trim_matches('\\');
 
         // Debugging: Print the trimmed printer name (optional, for logging)
-        // println!("Trimmed printer name: {}", trimmed_printer_name);
+        println!("Trimmed printer name: {}", trimmed_printer_name);
+
+        // Create a temporary PostScript file
+        let temp_ps_file = "temp_print_file.ps";
 
         // Get the path of the executable file
         let exe_path = std::env::current_exe()?;
         let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
 
-        // Construct the full path to the VBS script
-        let vbs_script_path = exe_dir.join("run_hidden.vbs");
-        let vbs_script_path_str = vbs_script_path.to_str().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to convert VBS script path to string"))?;
+        // Construct the path to the bundled Ghostscript executable
+        let ghostscript_path = exe_dir.join("gs10040w64.exe");
 
-        // Construct the command to call the wrapper script
-        let command = "cscript"; // Use cscript instead of wscript
-        let args = [vbs_script_path_str, document_path, trimmed_printer_name];
+        // Convert the PDF to PostScript using Ghostscript (silent mode)
+        let ghostscript_args = [
+            "-q", // Quiet mode
+            "-dNOPAUSE", // Don't pause between pages
+            "-dBATCH", // Exit after processing
+            "-sDEVICE=ps2write", // Output format: PostScript
+            "-sOutputFile=", // Output file
+            temp_ps_file,
+            document_path, // Input PDF file
+        ];
 
-        // Execute the command
-        let status = Command::new(command)
-            .args(&args)
+        let status = Command::new(ghostscript_path)
+            .args(&ghostscript_args)
             .creation_flags(CREATE_NO_WINDOW) // Suppress the terminal window
             .status()?;
 
-        if status.success() {
-            // println!("Print job sent successfully to {}.", trimmed_printer_name);
-        } else {
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to execute PDFtoPrinter.exe"));
+        if !status.success() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to convert PDF to PostScript using Ghostscript",
+            ));
         }
+
+        // Send the PostScript file to the printer
+        send_print_raw_job(printer_name, temp_ps_file)?;
+
+        // Clean up the temporary PostScript file
+        std::fs::remove_file(temp_ps_file)?;
     } else {
         // Use raw printing for non-PDF files
         send_print_raw_job(printer_name, document_path)?;
