@@ -6,6 +6,7 @@ use std::{
         ffi::OsStrExt,
         process::CommandExt, // Import CommandExt for creation_flags
     },
+    // path::PathBuf,
     ptr::null_mut,
     process::Command,
     sync::Mutex,
@@ -152,11 +153,19 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
         let trimmed_printer_name = printer_name.trim_matches('\\');
 
         // Debugging: Print the trimmed printer name (optional, for logging)
-        println!("Trimmed printer name: {}", trimmed_printer_name);
+        // println!("Trimmed printer name: {}", trimmed_printer_name);
+
+        // Get the path of the executable file
+        let exe_path = std::env::current_exe()?;
+        let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
+
+        // Construct the full path to the VBS script
+        let vbs_script_path = exe_dir.join("run_hidden.vbs");
+        let vbs_script_path_str = vbs_script_path.to_str().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to convert VBS script path to string"))?;
 
         // Construct the command to call the wrapper script
         let command = "wscript";
-        let args = ["run_hidden.vbs", document_path, trimmed_printer_name];
+        let args = [vbs_script_path_str, document_path, trimmed_printer_name];
 
         // Execute the command
         let status = Command::new(command)
@@ -165,7 +174,7 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
             .status()?;
 
         if status.success() {
-            println!("Print job sent successfully to {}.", trimmed_printer_name);
+            // println!("Print job sent successfully to {}.", trimmed_printer_name);
         } else {
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to execute PDFtoPrinter.exe"));
         }
