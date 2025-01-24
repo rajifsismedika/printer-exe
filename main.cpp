@@ -5,19 +5,18 @@
 #include <regex>
 #include <tchar.h>
 #include <vector>
+#include <shellapi.h> // For CommandLineToArgvW and ShellExecute
 
-
-void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
+// Function to send a raw print job
+void SendPrintRawJob(LPTSTR printerName, const std::string& documentPath)
 {
-    // Winspool -static -static-libgcc -static-libstdc++
-
     HANDLE hPrinter = NULL;
 
     // Read the document file as binary data
     std::ifstream file(documentPath, std::ios::binary);
     if (!file)
     {
-        std::cout << "Failed to open the document file." << std::endl;
+        MessageBox(NULL, _T("Failed to open the document file."), _T("Error"), MB_ICONERROR);
         return;
     }
 
@@ -26,7 +25,7 @@ void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
     // Open the printer
     if (!OpenPrinter(printerName, &hPrinter, NULL))
     {
-        std::cout << "Failed to open the printer. Error: " << GetLastError() << std::endl;
+        MessageBox(NULL, _T("Failed to open the printer."), _T("Error"), MB_ICONERROR);
         return;
     }
 
@@ -39,7 +38,7 @@ void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
     DWORD jobId = StartDocPrinter(hPrinter, 1, reinterpret_cast<LPBYTE>(&docInfo));
     if (jobId <= 0)
     {
-        std::cout << "Failed to start the print job. Error: " << GetLastError() << std::endl;
+        MessageBox(NULL, _T("Failed to start the print job."), _T("Error"), MB_ICONERROR);
         ClosePrinter(hPrinter);
         return;
     }
@@ -47,7 +46,7 @@ void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
     // Start a new page
     if (!StartPagePrinter(hPrinter))
     {
-        std::cout << "Failed to start a new page. Error: " << GetLastError() << std::endl;
+        MessageBox(NULL, _T("Failed to start a new page."), _T("Error"), MB_ICONERROR);
         EndDocPrinter(hPrinter);
         ClosePrinter(hPrinter);
         return;
@@ -57,7 +56,7 @@ void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
     DWORD bytesWritten = 0;
     if (!WritePrinter(hPrinter, data.data(), static_cast<DWORD>(data.size()), &bytesWritten))
     {
-        std::cout << "Failed to write to the printer. Error: " << GetLastError() << std::endl;
+        MessageBox(NULL, _T("Failed to write to the printer."), _T("Error"), MB_ICONERROR);
         EndPagePrinter(hPrinter);
         EndDocPrinter(hPrinter);
         ClosePrinter(hPrinter);
@@ -67,7 +66,7 @@ void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
     // End the page
     if (!EndPagePrinter(hPrinter))
     {
-        std::cout << "Failed to end the page. Error: " << GetLastError() << std::endl;
+        MessageBox(NULL, _T("Failed to end the page."), _T("Error"), MB_ICONERROR);
         EndDocPrinter(hPrinter);
         ClosePrinter(hPrinter);
         return;
@@ -76,7 +75,7 @@ void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
     // End the print job
     if (!EndDocPrinter(hPrinter))
     {
-        std::cout << "Failed to end the print job. Error: " << GetLastError() << std::endl;
+        MessageBox(NULL, _T("Failed to end the print job."), _T("Error"), MB_ICONERROR);
         ClosePrinter(hPrinter);
         return;
     }
@@ -84,28 +83,24 @@ void SendPrintRawJob(LPTSTR printerName, std::string& documentPath)
     // Close the printer
     ClosePrinter(hPrinter);
 
-    std::cout << "Print job sent successfully." << std::endl;
+    MessageBox(NULL, _T("Print job sent successfully."), _T("Success"), MB_ICONINFORMATION);
 }
 
+// Function to get the file extension
 std::string GetFileExtension(const std::string& filePath)
 {
-    // Regular expression pattern to match the file extension
     std::regex pattern("\\.([a-zA-Z0-9]+)$");
-
-    // Match object to store the results
     std::smatch match;
 
-    // Perform the regex search
     if (std::regex_search(filePath, match, pattern))
     {
-        // Return the matched file extension
         return match[1].str();
     }
 
-    // Return an empty string if no match found
     return "";
 }
 
+// Function to send a PDF print job
 void SendPrintPdfJob(LPTSTR printerName, const std::string& documentPath)
 {
     std::string command = "PDFtoPrinter.exe \"" + documentPath + "\" \"" + printerName + "\"";
@@ -115,15 +110,25 @@ void SendPrintPdfJob(LPTSTR printerName, const std::string& documentPath)
 
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;  // Set the flag to use wShowWindow
-    si.wShowWindow = SW_HIDE;           // Hide the window
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
 
     ZeroMemory(&pi, sizeof(pi));
 
     // Create the process with CREATE_NO_WINDOW flag to hide the terminal window
-    if (!CreateProcess(NULL, const_cast<char*>(command.c_str()), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+    if (!CreateProcess(
+            NULL,
+            const_cast<char*>(command.c_str()),
+            NULL,
+            NULL,
+            FALSE,
+            CREATE_NO_WINDOW,
+            NULL,
+            NULL,
+            &si,
+            &pi))
     {
-        std::cout << "Failed to execute PDFtoPrinter.exe. Error: " << GetLastError() << std::endl;
+        MessageBox(NULL, _T("Failed to execute PDFtoPrinter.exe."), _T("Error"), MB_ICONERROR);
         return;
     }
 
@@ -134,13 +139,14 @@ void SendPrintPdfJob(LPTSTR printerName, const std::string& documentPath)
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
 
-    std::cout << "Print job sent successfully." << std::endl;
+    MessageBox(NULL, _T("Print job sent successfully."), _T("Success"), MB_ICONINFORMATION);
 }
 
-int showPrinterNames() {
+// Function to display printer names
+int showPrinterNames()
+{
     DWORD numPrinters;
     DWORD bufferSize = 0;
-    DWORD i;
 
     // Call EnumPrinters with level 4 to list all printers
     EnumPrinters(PRINTER_ENUM_LOCAL, nullptr, 4, nullptr, 0, &bufferSize, &numPrinters);
@@ -151,13 +157,18 @@ int showPrinterNames() {
     // Call EnumPrinters again to get the printer information
     EnumPrinters(PRINTER_ENUM_LOCAL, nullptr, 4, reinterpret_cast<LPBYTE>(printerInfo), bufferSize, &bufferSize, &numPrinters);
 
-    if (numPrinters > 0) {
-        std::cout << "List of printers:\n";
-        for (i = 0; i < numPrinters; ++i) {
-            std::wcout << printerInfo[i].pPrinterName << "\n";
+    if (numPrinters > 0)
+    {
+        std::string printerList = "List of printers:\n";
+        for (DWORD i = 0; i < numPrinters; ++i)
+        {
+            printerList += std::string(printerInfo[i].pPrinterName) + "\n";
         }
-    } else {
-        std::cout << "No printers found.\n";
+        MessageBox(NULL, std::wstring(printerList.begin(), printerList.end()).c_str(), _T("Printers"), MB_ICONINFORMATION);
+    }
+    else
+    {
+        MessageBox(NULL, _T("No printers found."), _T("Printers"), MB_ICONINFORMATION);
     }
 
     // Clean up allocated memory
@@ -166,12 +177,22 @@ int showPrinterNames() {
     return 0;
 }
 
-int main(int argc, char* argv[]) {
-    std::string filename = (argc > 1) ? argv[1] : "";
+// Entry point for Windows application
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+    // Parse command-line arguments
+    int argc;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (!argv)
+    {
+        MessageBox(NULL, _T("Failed to parse command-line arguments."), _T("Error"), MB_ICONERROR);
+        return 1;
+    }
 
-    showPrinterNames();
+    std::string filename = (argc > 1) ? std::string(argv[1]) : "";
 
-    std::cout << "Params: " << filename << std::endl;
+    // Call showPrinterNames (optional, if you still want to list printers)
+    // showPrinterNames();
 
     // Get the path of the executable file
     TCHAR exePath[MAX_PATH];
@@ -184,26 +205,23 @@ int main(int argc, char* argv[]) {
     std::string configFilePath = exeDirectory + "\\config.txt";
     std::ifstream inputFile(configFilePath);
 
-    if (inputFile.is_open()) {
+    if (inputFile.is_open())
+    {
         std::string line;
-        std::string fileContent;
-        std::string selectedPrinterName = "No Printer Selected"; // Example printer name
+        std::string selectedPrinterName = "No Printer Selected";
         std::string fileExtension = "";
 
-
-        std::cout << "Processing File: " << filename << std::endl;
-
-        while (std::getline(inputFile, line)) {
-            fileContent += line + "\n";
-
+        while (std::getline(inputFile, line))
+        {
             size_t delimiterPos = line.find('|');
-            if (delimiterPos != std::string::npos) {
+            if (delimiterPos != std::string::npos)
+            {
                 std::string regexFormula = line.substr(0, delimiterPos);
                 std::string printerName = line.substr(delimiterPos + 1);
-                std::cout << "Testing against: " << regexFormula << std::endl;
 
                 std::regex pattern(regexFormula, std::regex_constants::icase);
-                if (std::regex_search(filename, pattern)) {
+                if (std::regex_search(filename, pattern))
+                {
                     selectedPrinterName = printerName;
                     fileExtension = GetFileExtension(filename);
                     break;
@@ -213,19 +231,20 @@ int main(int argc, char* argv[]) {
 
         inputFile.close();
 
-        std::cout << "Selected Printer Name: " << selectedPrinterName << std::endl;
-        std::cout << "Extension: " << fileExtension << std::endl;
-
-        if (fileExtension == "pdf") {
-            std::cout << "Printing PDF"  << std::endl;
+        if (fileExtension == "pdf")
+        {
             SendPrintPdfJob(const_cast<LPTSTR>(selectedPrinterName.c_str()), filename);
-        } else {
-            std::cout << "Printing RAW"  << std::endl;
+        }
+        else
+        {
             SendPrintRawJob(const_cast<LPTSTR>(selectedPrinterName.c_str()), filename);
         }
-    } else {
-        std::cout << "Unable to open the file." << std::endl;
+    }
+    else
+    {
+        MessageBox(NULL, _T("Unable to open the config file."), _T("Error"), MB_ICONERROR);
     }
 
+    LocalFree(argv);
     return 0;
 }
