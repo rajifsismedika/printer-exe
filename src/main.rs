@@ -118,27 +118,32 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
     let file_extension = get_file_extension(document_path).unwrap_or_default();
 
     if file_extension == "pdf" {
-        // Hardcode the printer name for testing
-        let trimmed_printer_name = "EPSON TM-T82II Receipt";
+        // Use PDFtoPrinter.exe for PDF files
+        // Remove leading and trailing backslashes from the printer name
+        let trimmed_printer_name = printer_name.trim_matches('\\');
 
         // Debugging: Print the trimmed printer name
         println!("Trimmed printer name: {}", trimmed_printer_name);
 
         // Construct the command with the properly formatted printer name
-        let command = format!("PDFtoPrinter.exe \"{}\" \"{}\"", document_path, trimmed_printer_name);
+        let command = "PDFtoPrinter.exe"; // Directly use the executable
+        let args = [document_path, trimmed_printer_name];
 
-        // Debugging: Print the command to verify it
-        println!("Executing command: {}", command);
+        // Debugging: Print the command and arguments
+        println!("Executing command: {} \"{}\" \"{}\"", command, args[0], args[1]);
 
-        let output = Command::new("cmd")
-            .args(&["/C", &command])
+        // Execute the command directly
+        let output = Command::new(command)
+            .args(&args)
             .output()?;
+
+        // Debugging: Print the command output
+        println!("Command output: {}", String::from_utf8_lossy(&output.stdout));
+        eprintln!("Command error: {}", String::from_utf8_lossy(&output.stderr));
 
         if output.status.success() {
             println!("Print job sent successfully to {}.", trimmed_printer_name);
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("Failed to execute PDFtoPrinter.exe. Error: {}", stderr);
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to execute PDFtoPrinter.exe"));
         }
     } else {
