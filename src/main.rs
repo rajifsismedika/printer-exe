@@ -6,7 +6,7 @@ use std::{
         ffi::OsStrExt,
         process::CommandExt, // Import CommandExt for creation_flags
     },
-    // path::PathBuf,
+    path::PathBuf,
     ptr::null_mut,
     process::Command,
     sync::Mutex,
@@ -64,12 +64,16 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
     let mut h_printer = null_mut();
     unsafe {
         if OpenPrinterW(printer_name_wide.as_ptr() as LPWSTR, &mut h_printer, null_mut()) == 0 {
+            let error = GetLastError();
+            eprintln!("Failed to open printer. Error: {}", error);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to open printer. Error: {}", GetLastError()),
+                format!("Failed to open printer. Error: {}", error),
             ));
         }
     }
+
+    println!("Printer opened successfully: {}", printer_name);
 
     // Read the document file as binary data
     let mut file = File::open(document_path)?;
@@ -89,53 +93,73 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
         // Cast &doc_info to a mutable pointer
         let job_id = StartDocPrinterW(h_printer, 1, &doc_info as *const _ as *mut BYTE);
         if job_id <= 0 {
+            let error = GetLastError();
+            eprintln!("Failed to start print job. Error: {}", error);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to start print job. Error: {}", GetLastError()),
+                format!("Failed to start print job. Error: {}", error),
             ));
         }
 
+        println!("Print job started successfully. Job ID: {}", job_id);
+
         // Start a new page
         if StartPagePrinter(h_printer) == 0 {
+            let error = GetLastError();
+            eprintln!("Failed to start page. Error: {}", error);
             EndDocPrinter(h_printer);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to start page. Error: {}", GetLastError()),
+                format!("Failed to start page. Error: {}", error),
             ));
         }
+
+        println!("Page started successfully.");
 
         // Write the print data to the printer
         let mut bytes_written: DWORD = 0;
         if WritePrinter(h_printer, data.as_ptr() as *mut _, data.len() as DWORD, &mut bytes_written) == 0 {
+            let error = GetLastError();
+            eprintln!("Failed to write to printer. Error: {}", error);
             EndPagePrinter(h_printer);
             EndDocPrinter(h_printer);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to write to printer. Error: {}", GetLastError()),
+                format!("Failed to write to printer. Error: {}", error),
             ));
         }
 
+        println!("Data written to printer successfully. Bytes written: {}", bytes_written);
+
         // End the page
         if EndPagePrinter(h_printer) == 0 {
+            let error = GetLastError();
+            eprintln!("Failed to end page. Error: {}", error);
             EndDocPrinter(h_printer);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to end page. Error: {}", GetLastError()),
+                format!("Failed to end page. Error: {}", error),
             ));
         }
 
+        println!("Page ended successfully.");
+
         // End the print job
         if EndDocPrinter(h_printer) == 0 {
+            let error = GetLastError();
+            eprintln!("Failed to end print job. Error: {}", error);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to end print job. Error: {}", GetLastError()),
+                format!("Failed to end print job. Error: {}", error),
             ));
         }
+
+        println!("Print job ended successfully.");
 
         // Close the printer
         ClosePrinter(h_printer);
@@ -149,50 +173,33 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
     let file_extension = get_file_extension(document_path).unwrap_or_default();
 
     if file_extension == "pdf" {
-        // Use Ghostscript for PDF files
+        // Use Foxit Reader for PDF files
         let trimmed_printer_name = printer_name.trim_matches('\\');
 
         // Debugging: Print the trimmed printer name (optional, for logging)
         println!("Trimmed printer name: {}", trimmed_printer_name);
 
-        // Create a temporary PostScript file
-        let temp_ps_file = "temp_print_file.ps";
+        // Path to Foxit Reader executable
+        let foxit_reader_path = r#"C:\Program Files (x86)\Foxit Software\Foxit Reader\Foxit Reader.exe"#;
 
-        // Get the path of the executable file
-        let exe_path = std::env::current_exe()?;
-        let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
+        // Construct the command to print the PDF
+        let command = foxit_reader_path;
+        let args = ["/t", document_path, trimmed_printer_name];
 
-        // Construct the path to the bundled Ghostscript executable
-        let ghostscript_path = exe_dir.join("gs10040w64.exe");
-
-        // Convert the PDF to PostScript using Ghostscript (silent mode)
-        let ghostscript_args = [
-            "-q", // Quiet mode
-            "-dNOPAUSE", // Don't pause between pages
-            "-dBATCH", // Exit after processing
-            "-sDEVICE=ps2write", // Output format: PostScript
-            "-sOutputFile=", // Output file
-            temp_ps_file,
-            document_path, // Input PDF file
-        ];
-
-        let status = Command::new(ghostscript_path)
-            .args(&ghostscript_args)
+        // Execute the command
+        let status = Command::new(command)
+            .args(&args)
             .creation_flags(CREATE_NO_WINDOW) // Suppress the terminal window
             .status()?;
 
         if !status.success() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                "Failed to convert PDF to PostScript using Ghostscript",
+                "Failed to execute Foxit Reader",
             ));
         }
 
-        // Send the PostScript file to the printer
-        send_print_raw_job(printer_name, temp_ps_file)?;
-
-        // Clean up the temporary PostScript file
-        std::fs::remove_file(temp_ps_file)?;
+        println!("Print job sent successfully to {}.", trimmed_printer_name);
     } else {
         // Use raw printing for non-PDF files
         send_print_raw_job(printer_name, document_path)?;
