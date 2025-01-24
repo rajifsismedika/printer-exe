@@ -1,6 +1,0 @@
-\.pdf$|\\DESKTOP-AUGF9B6\EPSON L120 series
-\.prn$|Canon G4010 series
-\.glb$|Canon G4010 series
-\.jpg$|\\DESKTOP-AUGF9B6\EPSON L120 series
-\.prn1$|Canon G4010 series
-\\.prn2$|Printer 4
