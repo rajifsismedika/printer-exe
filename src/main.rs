@@ -180,7 +180,7 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
         println!("Trimmed printer name: {}", trimmed_printer_name);
 
         // Path to Foxit Reader executable
-        let foxit_reader_path = r#"C:\Program Files (x86)\Foxit Software\Foxit Reader\Foxit Reader.exe"#;
+        let foxit_reader_path = r#"C:\Program Files (x86)\Foxit Software\Foxit PDF Reader\FoxitPDFReader.exe"#;
 
         // Construct the command to print the PDF
         let command = foxit_reader_path;
