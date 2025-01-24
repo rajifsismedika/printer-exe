@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winapi = { version = "0.3", features = ["winspool", "winbase", "winnt", "minwindef", "errhandlingapi"] }
+winapi = { version = "0.3", features = ["winbase", "winuser", "winspool", "errhandlingapi", "processthreadsapi"] }
 regex = "1.5"
 lazy_static = "1.4.0"
