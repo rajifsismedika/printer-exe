@@ -118,9 +118,8 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
     let file_extension = get_file_extension(document_path).unwrap_or_default();
 
     if file_extension == "pdf" {
-        // Use PDFtoPrinter.exe for PDF files
-        // Remove leading and trailing backslashes from the printer name
-        let trimmed_printer_name = printer_name.trim_matches('\\');
+        // Hardcode the printer name for testing
+        let trimmed_printer_name = "EPSON TM-T82II Receipt";
 
         // Debugging: Print the trimmed printer name
         println!("Trimmed printer name: {}", trimmed_printer_name);
