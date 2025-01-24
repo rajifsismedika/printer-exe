@@ -119,15 +119,21 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
 
     if file_extension == "pdf" {
         // Use PDFtoPrinter.exe for PDF files
+        // Remove leading and trailing backslashes from the printer name
+        let trimmed_printer_name = printer_name.trim_matches('\\');
+
         // Properly quote the printer name to handle spaces
-        let command = format!("PDFtoPrinter.exe \"{}\" \"{}\"", document_path, printer_name);
+        let command = format!("PDFtoPrinter.exe \"{}\" \"{}\"", document_path, trimmed_printer_name);
+
+        // Debugging: Print the command to verify it
+        println!("Executing command: {}", command);
 
         let status = Command::new("cmd")
             .args(&["/C", &command])
             .status()?;
 
         if status.success() {
-            println!("Print job sent successfully to {}.", printer_name);
+            println!("Print job sent successfully to {}.", trimmed_printer_name);
         } else {
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to execute PDFtoPrinter.exe"));
         }
