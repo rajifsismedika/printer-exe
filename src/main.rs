@@ -119,11 +119,8 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
 
     if file_extension == "pdf" {
         // Use PDFtoPrinter.exe for PDF files
-        // Escape backslashes in the printer name
-        let escaped_printer_name = printer_name.replace("\\", "\\\\");
-
-        // Construct the command without extra quotes around the printer name
-        let command = format!("PDFtoPrinter.exe \"{}\" {}", document_path, escaped_printer_name);
+        // Properly quote the printer name to handle spaces
+        let command = format!("PDFtoPrinter.exe \"{}\" \"{}\"", document_path, printer_name);
 
         let status = Command::new("cmd")
             .args(&["/C", &command])
