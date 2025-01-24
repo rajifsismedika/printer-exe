@@ -1,6 +1,17 @@
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, Read};
+use std::ptr::null_mut;
+use std::os::windows::ffi::OsStrExt;
+use std::sync::Mutex;
 use regex::Regex;
+use winapi::um::winspool::{OpenPrinterW, ClosePrinter, StartDocPrinterW, StartPagePrinter, EndPagePrinter, EndDocPrinter, WritePrinter, DOC_INFO_1W};
+use winapi::um::errhandlingapi::GetLastError;
+use winapi::um::winnt::LPWSTR;
+use winapi::shared::minwindef::{DWORD, BYTE};
+
+/// Global queue for print jobs
+static PRINT_QUEUE: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 
 /// Gets the file extension from a file path.
 fn get_file_extension(file_path: &str) -> Option<String> {
@@ -26,35 +37,8 @@ fn read_config(config_file_path: &str) -> io::Result<Vec<(Regex, String)>> {
     Ok(mappings)
 }
 
-/// Prints a file on macOS using the `lp` command.
-#[cfg(target_os = "macos")]
-fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
-    use std::process::Command;
-
-    let status = Command::new("lp")
-        .args(&["-d", printer_name, document_path])
-        .status()?;
-
-    if status.success() {
-        println!("Print job sent successfully to {}.", printer_name);
-    } else {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to execute `lp` command"));
-    }
-
-    Ok(())
-}
-
-/// Prints a file on Windows using raw printing or an external tool.
-#[cfg(target_os = "windows")]
-fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-    use std::ptr::null_mut;
-    use winapi::um::winspool::{OpenPrinterW, ClosePrinter, StartDocPrinterW, StartPagePrinter, EndPagePrinter, EndDocPrinter, WritePrinter, DOC_INFO_1W};
-    use winapi::um::errhandlingapi::GetLastError;
-    use winapi::um::winnt::LPWSTR;
-    use winapi::shared::minwindef::{DWORD, BYTE};
-
+/// Sends a raw print job to the specified printer.
+fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()> {
     // Convert printer name to wide string
     let printer_name_wide: Vec<u16> = OsStr::new(printer_name).encode_wide().chain(Some(0)).collect();
 
@@ -122,8 +106,17 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
         ClosePrinter(h_printer);
     }
 
-    println!("Print job sent successfully to {}.", printer_name);
     Ok(())
+}
+
+/// Processes the print queue.
+fn process_print_queue() {
+    let mut queue = PRINT_QUEUE.lock().unwrap();
+    while let Some((printer_name, document_path)) = queue.pop() {
+        if let Err(e) = send_print_raw_job(&printer_name, &document_path) {
+            eprintln!("Failed to print {}: {}", document_path, e);
+        }
+    }
 }
 
 fn main() -> io::Result<()> {
@@ -147,17 +140,20 @@ fn main() -> io::Result<()> {
     let file_extension = get_file_extension(file_path).unwrap_or_default();
 
     // Find the appropriate printer for the file extension
-    let mut selected_printer: Option<String> = None;
+    let mut selected_printer = None;
     for (re, printer_name) in mappings {
         if re.is_match(file_path) {
-            selected_printer = Some(printer_name.to_string());
+            selected_printer = Some(printer_name);
             break;
         }
     }
 
     if let Some(printer_name) = selected_printer {
-        println!("Printing to {}", printer_name);
-        send_print_job(&printer_name, file_path)?;
+        // Add the print job to the queue
+        PRINT_QUEUE.lock().unwrap().push((printer_name, file_path.to_string()));
+
+        // Process the print queue
+        process_print_queue();
     } else {
         eprintln!("No printer found for file extension: {}", file_extension);
     }

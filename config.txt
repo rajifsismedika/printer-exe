@@ -1,3 +1,0 @@
-\.pdf$|Printer1
-\.txt$|Printer2
-\.jpg$|Printer3
