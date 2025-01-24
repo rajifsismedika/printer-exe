@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::ptr::null_mut;
 use std::os::windows::ffi::OsStrExt;
-use std::process::Command;
+// use std::process::Command;
 use std::sync::Mutex;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -11,6 +11,9 @@ use winapi::um::winspool::{OpenPrinterW, ClosePrinter, StartDocPrinterW, StartPa
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::winnt::LPWSTR;
 use winapi::shared::minwindef::{DWORD, BYTE};
+use std::process::{Command, Stdio};
+use std::os::windows::process::CommandExt;
+use winapi::um::winbase::CREATE_NO_WINDOW;
 
 // Global queue for print jobs
 lazy_static! {
@@ -122,22 +125,25 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
         // Remove leading and trailing backslashes from the printer name
         let trimmed_printer_name = printer_name.trim_matches('\\');
 
-        // Debugging: Print the trimmed printer name
+        // Debugging: Print the trimmed printer name (optional, for logging)
         println!("Trimmed printer name: {}", trimmed_printer_name);
 
         // Construct the command with the properly formatted printer name
         let command = "PDFtoPrinter.exe"; // Directly use the executable
         let args = [document_path, trimmed_printer_name];
 
-        // Debugging: Print the command and arguments
+        // Debugging: Print the command and arguments (optional, for logging)
         println!("Executing command: {} \"{}\" \"{}\"", command, args[0], args[1]);
 
-        // Execute the command directly
+        // Execute the command directly without showing a terminal window
         let output = Command::new(command)
             .args(&args)
+            .creation_flags(CREATE_NO_WINDOW) // Suppress the terminal window
+            .stdout(Stdio::piped()) // Capture stdout (optional)
+            .stderr(Stdio::piped()) // Capture stderr (optional)
             .output()?;
 
-        // Debugging: Print the command output
+        // Debugging: Print the command output (optional, for logging)
         println!("Command output: {}", String::from_utf8_lossy(&output.stdout));
         eprintln!("Command error: {}", String::from_utf8_lossy(&output.stderr));
 
