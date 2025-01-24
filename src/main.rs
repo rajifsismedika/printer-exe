@@ -4,9 +4,8 @@ use std::{
     io::{self, Read},
     os::windows::{
         ffi::OsStrExt,
-        process::CommandExt, // Import CommandExt for creation_flags
+        process::CommandExt,
     },
-    // path::PathBuf,
     ptr::null_mut,
     process::Command,
     sync::Mutex,
@@ -25,7 +24,6 @@ use winapi::{
         },
     },
 };
-use sysinfo::{ProcessExt, System, SystemExt};
 
 // Global queue for print jobs
 lazy_static! {
@@ -34,68 +32,60 @@ lazy_static! {
 
 /// Gets the file extension from a file path.
 fn get_file_extension(file_path: &str) -> Option<String> {
-    let re = Regex::new(r"\.([a-zA-Z0-9]+)$").unwrap();
-    re.captures(file_path).map(|cap| cap[1].to_string())
+    Regex::new(r"\.([a-zA-Z0-9]+)$")
+        .unwrap()
+        .captures(file_path)
+        .map(|cap| cap[1].to_string())
 }
 
 /// Reads the configuration file and returns a mapping of file extensions to printer names.
 fn read_config(config_file_path: &str) -> io::Result<Vec<(Regex, String)>> {
     let config_file = std::fs::read_to_string(config_file_path)?;
-    let mut mappings = Vec::new();
-
-    for line in config_file.lines() {
-        if let Some(delimiter_pos) = line.find('|') {
-            let regex_formula = &line[..delimiter_pos];
-            let printer_name = &line[delimiter_pos + 1..];
-
-            let re = Regex::new(regex_formula).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            mappings.push((re, printer_name.to_string()));
-        }
-    }
-
-    Ok(mappings)
+    Ok(config_file
+        .lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split('|').collect();
+            if parts.len() == 2 {
+                Regex::new(parts[0])
+                    .map(|re| (re, parts[1].to_string()))
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+                    .ok()
+            } else {
+                None
+            }
+        })
+        .collect())
 }
 
 /// Sends a raw print job to the specified printer.
 fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()> {
-    // Convert printer name to wide string
     let printer_name_wide: Vec<u16> = OsStr::new(printer_name).encode_wide().chain(Some(0)).collect();
-
-    // Open the printer
     let mut h_printer = null_mut();
+
     unsafe {
         if OpenPrinterW(printer_name_wide.as_ptr() as LPWSTR, &mut h_printer, null_mut()) == 0 {
             let error = GetLastError();
-            eprintln!("Failed to open printer. Error: {}", error);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!("Failed to open printer. Error: {}", error),
             ));
         }
-    }
 
-    // println!("Printer opened successfully: {}", printer_name);
+        let mut file = File::open(document_path)?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
 
-    // Read the document file as binary data
-    let mut file = File::open(document_path)?;
-    let mut data = Vec::new();
-    file.read_to_end(&mut data)?;
+        let doc_name: Vec<u16> = OsStr::new("Printing File").encode_wide().chain(Some(0)).collect();
+        let raw_datatype: Vec<u16> = OsStr::new("RAW").encode_wide().chain(Some(0)).collect();
+        let doc_info = DOC_INFO_1W {
+            pDocName: doc_name.as_ptr() as LPWSTR,
+            pOutputFile: null_mut(),
+            pDatatype: raw_datatype.as_ptr() as LPWSTR,
+        };
 
-    // Start a print job
-    let doc_name: Vec<u16> = OsStr::new("Printing File").encode_wide().chain(Some(0)).collect();
-    let raw_datatype: Vec<u16> = OsStr::new("RAW").encode_wide().chain(Some(0)).collect();
-    let doc_info = DOC_INFO_1W {
-        pDocName: doc_name.as_ptr() as LPWSTR,
-        pOutputFile: null_mut(),
-        pDatatype: raw_datatype.as_ptr() as LPWSTR,
-    };
-
-    unsafe {
-        // Cast &doc_info to a mutable pointer
         let job_id = StartDocPrinterW(h_printer, 1, &doc_info as *const _ as *mut BYTE);
         if job_id <= 0 {
             let error = GetLastError();
-            eprintln!("Failed to start print job. Error: {}", error);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -103,12 +93,8 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        // println!("Print job started successfully. Job ID: {}", job_id);
-
-        // Start a new page
         if StartPagePrinter(h_printer) == 0 {
             let error = GetLastError();
-            eprintln!("Failed to start page. Error: {}", error);
             EndDocPrinter(h_printer);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
@@ -117,13 +103,9 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        // println!("Page started successfully.");
-
-        // Write the print data to the printer
         let mut bytes_written: DWORD = 0;
         if WritePrinter(h_printer, data.as_ptr() as *mut _, data.len() as DWORD, &mut bytes_written) == 0 {
             let error = GetLastError();
-            eprintln!("Failed to write to printer. Error: {}", error);
             EndPagePrinter(h_printer);
             EndDocPrinter(h_printer);
             ClosePrinter(h_printer);
@@ -133,26 +115,8 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        // println!("Data written to printer successfully. Bytes written: {}", bytes_written);
-
-        // End the page
-        if EndPagePrinter(h_printer) == 0 {
+        if EndPagePrinter(h_printer) == 0 || EndDocPrinter(h_printer) == 0 {
             let error = GetLastError();
-            eprintln!("Failed to end page. Error: {}", error);
-            EndDocPrinter(h_printer);
-            ClosePrinter(h_printer);
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to end page. Error: {}", error),
-            ));
-        }
-
-        // println!("Page ended successfully.");
-
-        // End the print job
-        if EndDocPrinter(h_printer) == 0 {
-            let error = GetLastError();
-            eprintln!("Failed to end print job. Error: {}", error);
             ClosePrinter(h_printer);
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -160,70 +124,64 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
             ));
         }
 
-        // println!("Print job ended successfully.");
-
-        // Close the printer
         ClosePrinter(h_printer);
     }
 
     Ok(())
 }
 
-/// Checks if PDFtoPrinter.exe is still running.
-fn is_pdftoprinter_running() -> bool {
-    let system = System::new_all();
-    for process in system.processes_by_name("PDFtoPrinter") {
-        if process.name() == "PDFtoPrinter.exe" {
-            return true;
-        }
+/// Returns the path to the flag file.
+fn get_flag_file_path() -> io::Result<std::path::PathBuf> {
+    let exe_path = std::env::current_exe()?;
+    let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
+    Ok(exe_dir.join("printing.flag"))
+}
+
+/// Creates the flag file to indicate that printing is in progress.
+fn create_flag_file() -> io::Result<()> {
+    File::create(get_flag_file_path()?)?;
+    Ok(())
+}
+
+/// Deletes the flag file to indicate that printing is done.
+fn delete_flag_file() -> io::Result<()> {
+    let flag_file_path = get_flag_file_path()?;
+    if flag_file_path.exists() {
+        std::fs::remove_file(flag_file_path)?;
     }
-    false
+    Ok(())
+}
+
+/// Checks if the flag file exists, indicating that printing is in progress.
+fn is_printing_in_progress() -> io::Result<bool> {
+    Ok(get_flag_file_path()?.exists())
 }
 
 /// Prints a file using the appropriate method based on its extension.
 fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
-    let file_extension = get_file_extension(document_path).unwrap_or_default();
-
-    if file_extension == "pdf" {
-        // Use PDFtoPrinter.exe for PDF files
+    if get_file_extension(document_path).unwrap_or_default() == "pdf" {
         let trimmed_printer_name = printer_name.trim_matches('\\');
-
-        // Debugging: Print the trimmed printer name (optional, for logging)
-        // println!("Trimmed printer name: {}", trimmed_printer_name);
-
-        // Get the path of the executable file
         let exe_path = std::env::current_exe()?;
         let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
-
-        // Construct the path to the bundled PDFtoPrinter.exe
         let pdftoprinter_path = exe_dir.join("PDFtoPrinter.exe");
 
-        // Construct the command to print the PDF
-        let command = pdftoprinter_path.to_str().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to convert path to string"))?;
-        let args = [document_path, trimmed_printer_name];
-
-        // Check if PDFtoPrinter.exe is already running
-        while is_pdftoprinter_running() {
-            // println!("PDFtoPrinter.exe is still running. Waiting...");
-            std::thread::sleep(std::time::Duration::from_secs(1)); // Wait for 1 second before checking again
+        while is_printing_in_progress()? {
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
 
-        // Execute the command
-        let status = Command::new(command)
-            .args(&args)
-            .creation_flags(CREATE_NO_WINDOW) // Suppress the terminal window
+        create_flag_file()?;
+
+        let status = Command::new(pdftoprinter_path)
+            .args(&[document_path, trimmed_printer_name])
+            .creation_flags(CREATE_NO_WINDOW)
             .status()?;
 
-        if !status.success() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Failed to execute PDFtoPrinter.exe",
-            ));
-        }
+        delete_flag_file()?;
 
-        // println!("Print job sent successfully to {}.", trimmed_printer_name);
+        if !status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to execute PDFtoPrinter.exe"));
+        }
     } else {
-        // Use raw printing for non-PDF files
         send_print_raw_job(printer_name, document_path)?;
     }
 
@@ -234,7 +192,6 @@ fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
 fn process_print_queue() {
     let mut queue = PRINT_QUEUE.lock().unwrap();
     while let Some((printer_name, document_path)) = queue.pop() {
-        // Process one print job at a time
         if let Err(e) = send_print_job(&printer_name, &document_path) {
             eprintln!("Failed to print {}: {}", document_path, e);
         }
@@ -246,7 +203,18 @@ fn add_print_job(printer_name: String, document_path: String) {
     PRINT_QUEUE.lock().unwrap().push((printer_name, document_path));
 }
 
+/// Ensures the flag file is deleted when the program exits.
+struct FlagFileCleanup;
+
+impl Drop for FlagFileCleanup {
+    fn drop(&mut self) {
+        let _ = delete_flag_file();
+    }
+}
+
 fn main() -> io::Result<()> {
+    let _cleanup = FlagFileCleanup;
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: {} <file_path>", args[0]);
@@ -254,32 +222,19 @@ fn main() -> io::Result<()> {
     }
 
     let file_path = &args[1];
-
-    // Get the path of the executable file
     let exe_path = std::env::current_exe()?;
     let exe_dir = exe_path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to get executable directory"))?;
     let config_file_path = exe_dir.join("config.txt");
 
-    // Read the configuration file
     let mappings = read_config(config_file_path.to_str().unwrap())?;
-
-    // Get the file extension
     let file_extension = get_file_extension(file_path).unwrap_or_default();
 
-    // Find the appropriate printer for the file extension
-    let mut selected_printer = None;
-    for (re, printer_name) in mappings {
-        if re.is_match(file_path) {
-            selected_printer = Some(printer_name);
-            break;
-        }
-    }
-
-    if let Some(printer_name) = selected_printer {
-        // Add the print job to the queue
+    if let Some(printer_name) = mappings
+        .into_iter()
+        .find(|(re, _)| re.is_match(file_path))
+        .map(|(_, printer_name)| printer_name)
+    {
         add_print_job(printer_name, file_path.to_string());
-
-        // Process the print queue
         process_print_queue();
     } else {
         eprintln!("No printer found for file extension: {}", file_extension);
