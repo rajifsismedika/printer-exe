@@ -3,15 +3,19 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::ptr::null_mut;
 use std::os::windows::ffi::OsStrExt;
+use std::process::Command;
 use std::sync::Mutex;
+use lazy_static::lazy_static;
 use regex::Regex;
 use winapi::um::winspool::{OpenPrinterW, ClosePrinter, StartDocPrinterW, StartPagePrinter, EndPagePrinter, EndDocPrinter, WritePrinter, DOC_INFO_1W};
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::winnt::LPWSTR;
 use winapi::shared::minwindef::{DWORD, BYTE};
 
-/// Global queue for print jobs
-static PRINT_QUEUE: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+// Global queue for print jobs
+lazy_static! {
+    static ref PRINT_QUEUE: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+}
 
 /// Gets the file extension from a file path.
 fn get_file_extension(file_path: &str) -> Option<String> {
@@ -109,11 +113,41 @@ fn send_print_raw_job(printer_name: &str, document_path: &str) -> io::Result<()>
     Ok(())
 }
 
+/// Prints a file using the appropriate method based on its extension.
+fn send_print_job(printer_name: &str, document_path: &str) -> io::Result<()> {
+    let file_extension = get_file_extension(document_path).unwrap_or_default();
+
+    if file_extension == "pdf" {
+        // Use PDFtoPrinter.exe for PDF files
+        let command = format!("PDFtoPrinter.exe \"{}\" \"{}\"", document_path, printer_name);
+
+        let status = Command::new("cmd")
+            .args(&["/C", &command])
+            .status()?;
+
+        if status.success() {
+            println!("Print job sent successfully to {}.", printer_name);
+        } else {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to execute PDFtoPrinter.exe"));
+        }
+    } else {
+        // Use raw printing for non-PDF files
+        send_print_raw_job(printer_name, document_path)?;
+    }
+
+    Ok(())
+}
+
+/// Adds a print job to the queue.
+fn add_print_job(printer_name: String, document_path: String) {
+    PRINT_QUEUE.lock().unwrap().push((printer_name, document_path));
+}
+
 /// Processes the print queue.
 fn process_print_queue() {
     let mut queue = PRINT_QUEUE.lock().unwrap();
     while let Some((printer_name, document_path)) = queue.pop() {
-        if let Err(e) = send_print_raw_job(&printer_name, &document_path) {
+        if let Err(e) = send_print_job(&printer_name, &document_path) {
             eprintln!("Failed to print {}: {}", document_path, e);
         }
     }
@@ -150,7 +184,7 @@ fn main() -> io::Result<()> {
 
     if let Some(printer_name) = selected_printer {
         // Add the print job to the queue
-        PRINT_QUEUE.lock().unwrap().push((printer_name, file_path.to_string()));
+        add_print_job(printer_name, file_path.to_string());
 
         // Process the print queue
         process_print_queue();

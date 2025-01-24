@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 winapi = { version = "0.3", features = ["winspool", "winbase", "winnt", "minwindef", "errhandlingapi"] }
 regex = "1.5"
+lazy_static = "1.4.0"
