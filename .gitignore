@@ -1,0 +1,55 @@
+# Compiled binary and libraries
+/debug
+/target
+
+# Rust/Cargo specific files
+Cargo.lock
+*.rs.bk
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.tmp
+*.log
+*.bak
+*.orig
+
+# MacOS specific
+.DS_Store
+
+# Windows specific
+Thumbs.db
+Desktop.ini
+
+# Linux specific
+*~
+.cache
+*.lock
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Coverage, testing, and debugging
+.coverage
+.coverage.*
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+.lcov
+/coverage
+
+# Rust documentation
+/target/doc
+
+# Git specific
+*.rej
+*.patch
+*.orig
+
+# Build system files (optional)
+Makefile
+Makefile.old
