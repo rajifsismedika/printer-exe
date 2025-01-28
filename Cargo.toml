@@ -1,0 +1,9 @@
+[package]
+name = "Printer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+winapi = { version = "0.3", features = ["winbase", "winspool", "winnt", "errhandlingapi"] }
+lazy_static = "1.4.0"
+regex = "1.10.2"

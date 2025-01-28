@@ -1,0 +1,3 @@
+\.pdf$|EPSON TM-T82II Receipt
+\.txt$|Printer2
+\.jpg$|Printer3
